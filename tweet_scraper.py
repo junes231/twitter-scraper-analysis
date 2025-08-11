@@ -8,7 +8,12 @@ import datetime
 import snscrape.modules.twitter as sntwitter
 from textblob import TextBlob
 import matplotlib.pyplot as plt
-
+import requests
+try:
+    r = requests.get("https://twitter.com", verify=certifi.where())
+    print("requests OK:", r.status_code)
+except Exception as e:
+    print("requests ERROR:", e)
 # 配置
 KEYWORDS = ["AI", "人工智能", "ChatGPT"]
 MAX_TWEETS_PER_RUN = 200
