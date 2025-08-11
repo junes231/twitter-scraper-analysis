@@ -1,3 +1,6 @@
+import certifi
+import snscrape.base
+snscrape.base._REQUEST_KWARGS = {'verify': certifi.where()}
 import os
 import pandas as pd
 import datetime
