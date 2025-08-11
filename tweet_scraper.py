@@ -8,9 +8,9 @@ import json
 
 # ===== 配置 =====
 TWEETS_CSV = "tweets_dataset.csv"
-QUERY = "AI OR artificial intelligence"
 MAX_TOTAL_TWEETS = 20000  # 总数上限
-MAX_RESULTS_PER_RUN = 50  # 每次运行采集数量
+MAX_RESULTS_PER_RUN = 30  # 每个关键词每次采集数量
+TOP_KEYWORDS_LIMIT = 10   # 热门关键词数量
 
 # ===== 美国时间判断 =====
 eastern = pytz.timezone("US/Eastern")
@@ -40,28 +40,51 @@ if os.path.exists(TWEETS_CSV):
 else:
     df_all = pd.DataFrame(columns=["date", "content", "username", "url"])
 
-# ===== 采集推文 =====
-print("开始采集推文数据...")
-cmd = f"snscrape --jsonl --max-results {MAX_RESULTS_PER_RUN} twitter-search \"{QUERY} since:{datetime.now().strftime('%Y-%m-%d')}\""
-result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+# ===== 第一步：采集当天热门关键词 =====
+print("采集当天热门推特关键词...")
+cmd_trending = "snscrape --jsonl --max-results 200 twitter-trending"
+result_trending = subprocess.run(cmd_trending, shell=True, capture_output=True, text=True)
 
-if result.returncode != 0:
-    print("采集出错：", result.stderr)
+if result_trending.returncode != 0:
+    print("采集热门关键词出错：", result_trending.stderr)
     exit()
 
+keywords = []
+for line in result_trending.stdout.splitlines():
+    try:
+        trend = json.loads(line)
+        keywords.append(trend["name"])
+    except:
+        continue
+
+# 取前 N 个热门关键词
+keywords = list(dict.fromkeys(keywords))[:TOP_KEYWORDS_LIMIT]
+print(f"热门关键词: {keywords}")
+
+# ===== 第二步：按关键词采集推文 =====
 tweets_data = []
-for line in result.stdout.splitlines():
-    tweet = json.loads(line)
-    tweets_data.append({
-        "date": tweet["date"],
-        "content": tweet["content"],
-        "username": tweet["user"]["username"],
-        "url": tweet["url"]
-    })
 
+for kw in keywords:
+    cmd = f'snscrape --jsonl --max-results {MAX_RESULTS_PER_RUN} twitter-search "{kw} since:{datetime.now().strftime("%Y-%m-%d")}"'
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"关键词 {kw} 采集出错：", result.stderr)
+        continue
+
+    for line in result.stdout.splitlines():
+        try:
+            tweet = json.loads(line)
+            tweets_data.append({
+                "date": tweet["date"],
+                "content": tweet["content"],
+                "username": tweet["user"]["username"],
+                "url": tweet["url"]
+            })
+        except:
+            continue
+
+# ===== 第三步：合并数据并限制总量 =====
 df_new = pd.DataFrame(tweets_data)
-
-# ===== 合并数据并限制总量 =====
 df_all = pd.concat([df_all, df_new], ignore_index=True).drop_duplicates(subset=["url"])
 df_all["date"] = pd.to_datetime(df_all["date"])
 df_all = df_all.sort_values(by="date", ascending=False).head(MAX_TOTAL_TWEETS)
@@ -69,7 +92,7 @@ df_all = df_all.sort_values(by="date", ascending=False).head(MAX_TOTAL_TWEETS)
 df_all.to_csv(TWEETS_CSV, index=False, encoding="utf-8-sig")
 print(f"已保存数据到 {TWEETS_CSV}，当前总计 {len(df_all)} 条推文")
 
-# ===== 生成趋势图 =====
+# ===== 第四步：生成趋势图 =====
 df_trend = df_all.groupby(df_all["date"].dt.date).size()
 plt.figure(figsize=(10, 5))
 df_trend.plot(kind="line", marker="o")
