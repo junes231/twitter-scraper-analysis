@@ -16,17 +16,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.10"
 
       - name: Install CA certificates
         run: sudo apt-get update && sudo apt-get install -y ca-certificates
-
+      
+      - name: Reinstall certifi
+        run: pip install --force-reinstall certifi
+     
       - name: Install dependencies
         run: pip install --upgrade pip certifi requests snscrape pandas matplotlib textblob
 
       - name: Run scraper
         run: |
           export SSL_CERT_FILE=$(python3 -m certifi)
+          export REQUESTS_CA_BUNDLE=$(python3 -m certifi)
           python tweet_scraper.py
 
       - name: Commit and push changes
