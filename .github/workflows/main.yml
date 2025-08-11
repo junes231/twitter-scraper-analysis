@@ -2,7 +2,7 @@ name: Twitter Scraper Automation
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # 每天 UTC 时间 02:00 运行
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -22,18 +22,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ca-certificates
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Upgrade certifi
         run: pip install --upgrade certifi
 
-      - name: Show Python SSL cert location
-        run: python -m certifi
+      - name: Upgrade snscrape and requests
+        run: pip install --upgrade snscrape requests
+
+      - name: Show certifi cert path
+        run: python -c "import certifi; print(certifi.where())"
 
       - name: Run scraper
-        run: |
-          python tweet_scraper.py
+        run: python tweet_scraper.py
 
       - name: Commit and push changes
         run: |
