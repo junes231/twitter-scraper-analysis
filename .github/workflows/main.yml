@@ -2,8 +2,8 @@ name: Twitter Scraper Automation
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # UTC 时间 02:00，每天运行
-  workflow_dispatch:      # 手动运行按钮
+    - cron: "0 2 * * *"  # 每天 UTC 时间 02:00 运行
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -30,6 +30,6 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add tweets_dataset.csv
-          git commit -m "Auto update tweets dataset" || echo "No changes to commit"
+          git add tweets_dataset.csv sentiment_trend.png
+          git commit -m "Auto update tweets and sentiment trend" || echo "No changes to commit"
           git push
