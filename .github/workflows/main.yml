@@ -20,10 +20,16 @@ jobs:
 
       - name: Install CA certificates
         run: sudo apt-get update && sudo apt-get install -y ca-certificates
-        
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Upgrade certifi
+        run: pip install --upgrade certifi
+
+      - name: Show Python SSL cert location
+        run: python -m certifi
 
       - name: Run scraper
         run: |
