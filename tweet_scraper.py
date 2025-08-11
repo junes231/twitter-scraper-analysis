@@ -1,7 +1,7 @@
 import certifi
 print("certifi.where():", certifi.where())
 import snscrape.base
-snscrape.base._REQUEST_KWARGS = {'verify': certifi.where()}
+snscrape.base._REQUEST_KWARGS = {'verify': False}
 import requests
 try:
     r = requests.get("https://twitter.com", verify=certifi.where())
