@@ -4,15 +4,22 @@ import matplotlib.pyplot as plt
 import pytz
 from datetime import datetime
 import subprocess
+import json
 
-# ========== 美国时间判断 ==========
+# ===== 配置 =====
+TWEETS_CSV = "tweets_dataset.csv"
+QUERY = "AI OR artificial intelligence"
+MAX_TOTAL_TWEETS = 20000  # 总数上限
+MAX_RESULTS_PER_RUN = 50  # 每次运行采集数量
+
+# ===== 美国时间判断 =====
 eastern = pytz.timezone("US/Eastern")
 now_eastern = datetime.now(eastern)
 if now_eastern.hour != 10:
     print(f"当前美国东部时间是 {now_eastern.strftime('%Y-%m-%d %H:%M:%S')}，不是 10:00，跳过任务。")
     exit()
 
-# ========== 代理设置（GitHub Secrets） ==========
+# ===== 代理设置 =====
 PROXY_USER = os.getenv("PROXY_USER")
 PROXY_PASS = os.getenv("PROXY_PASS")
 PROXY_HOST = os.getenv("PROXY_HOST")
@@ -24,21 +31,24 @@ if PROXY_USER and PROXY_HOST:
     os.environ["HTTPS_PROXY"] = proxy_url
     print(f"已设置代理 {PROXY_HOST}")
 
-# ========== 配置搜索关键词 ==========
-QUERY = "AI OR artificial intelligence"  # 你可以改成自己想搜的词
-TWEETS_CSV = "tweets_dataset.csv"
+# ===== 检查历史数据数量 =====
+if os.path.exists(TWEETS_CSV):
+    df_all = pd.read_csv(TWEETS_CSV)
+    if len(df_all) >= MAX_TOTAL_TWEETS:
+        print(f"已达到 {MAX_TOTAL_TWEETS} 条推文的上限，停止采集。")
+        exit()
+else:
+    df_all = pd.DataFrame(columns=["date", "content", "username", "url"])
 
-# ========== 采集最新推文 ==========
+# ===== 采集推文 =====
 print("开始采集推文数据...")
-cmd = f"snscrape --jsonl --max-results 50 twitter-search \"{QUERY} since:{datetime.now().strftime('%Y-%m-%d')}\""
+cmd = f"snscrape --jsonl --max-results {MAX_RESULTS_PER_RUN} twitter-search \"{QUERY} since:{datetime.now().strftime('%Y-%m-%d')}\""
 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 if result.returncode != 0:
     print("采集出错：", result.stderr)
     exit()
 
-# ========== 解析数据 ==========
-import json
 tweets_data = []
 for line in result.stdout.splitlines():
     tweet = json.loads(line)
@@ -51,20 +61,16 @@ for line in result.stdout.splitlines():
 
 df_new = pd.DataFrame(tweets_data)
 
-# ========== 历史数据追加 ==========
-if os.path.exists(TWEETS_CSV):
-    df_old = pd.read_csv(TWEETS_CSV)
-    df_all = pd.concat([df_old, df_new], ignore_index=True).drop_duplicates(subset=["url"])
-else:
-    df_all = df_new
+# ===== 合并数据并限制总量 =====
+df_all = pd.concat([df_all, df_new], ignore_index=True).drop_duplicates(subset=["url"])
+df_all["date"] = pd.to_datetime(df_all["date"])
+df_all = df_all.sort_values(by="date", ascending=False).head(MAX_TOTAL_TWEETS)
 
 df_all.to_csv(TWEETS_CSV, index=False, encoding="utf-8-sig")
 print(f"已保存数据到 {TWEETS_CSV}，当前总计 {len(df_all)} 条推文")
 
-# ========== 生成趋势图 ==========
-df_all["date"] = pd.to_datetime(df_all["date"])
+# ===== 生成趋势图 =====
 df_trend = df_all.groupby(df_all["date"].dt.date).size()
-
 plt.figure(figsize=(10, 5))
 df_trend.plot(kind="line", marker="o")
 plt.title("Tweet Trend Over Time")
