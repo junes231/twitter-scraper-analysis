@@ -1,42 +1,38 @@
-name: Twitter Scraper Automation
+name: Run Twitter Scraper
 
 on:
   schedule:
-    - cron: "0 2 * * *"
-  workflow_dispatch:
+    - cron: "0 15 * * *"  # 每天美国东部上午 10:00（冬令时）
+  workflow_dispatch:      # 允许手动触发
 
 jobs:
-  scrape:
-    runs-on: ubuntu-22.04
+  build:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: Install CA certificates
-        run: sudo apt-get update && sudo apt-get install -y ca-certificates
-      
-      - name: Reinstall certifi
-        run: pip install --force-reinstall certifi
-     
-      - name: Install dependencies
-        run: pip install --upgrade pip certifi requests snscrape pandas matplotlib textblob
+    - name: Install dependencies
+      run: pip install -r requirements.txt
 
-      - name: Run scraper
-        run: |
-          export SSL_CERT_FILE=$(python3 -m certifi)
-          export REQUESTS_CA_BUNDLE=$(python3 -m certifi)
-          python tweet_scraper.py
+    - name: Run scraper
+      env:
+        PROXY_USER: ${{ secrets.PROXY_USER }}
+        PROXY_PASS: ${{ secrets.PROXY_PASS }}
+        PROXY_HOST: ${{ secrets.PROXY_HOST }}
+        PROXY_PORT: ${{ secrets.PROXY_PORT }}
+      run: python scraper.py
 
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-          git add tweets_dataset.csv sentiment_trend.png
-          git commit -m "Auto update tweets and sentiment trend" || echo "No changes to commit"
-          git push
+    - name: Commit and push changes
+      run: |
+        git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git add tweets_dataset.csv tweet_trend.png
+        git commit -m "Update tweets data [skip ci]" || echo "No changes to commit"
+        git push
