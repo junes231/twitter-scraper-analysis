@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: pip install --upgrade pip certifi requests snscrape
 
+      - name: Install dependencies
+        run: pip install --upgrade pip certifi requests snscrape pandas matplotlib textblob
+     
       - name: Run scraper
         run: python tweet_scraper.py
     
