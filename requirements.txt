@@ -1,3 +1,4 @@
-snscrape
 pandas
 matplotlib
+pytz
+snscrape
