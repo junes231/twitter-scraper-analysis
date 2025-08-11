@@ -9,7 +9,7 @@ jobs:
   scrape:
         runs-on: ubuntu-22.04
 
-    steps:
+        steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
@@ -22,16 +22,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ca-certificates
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-   
-      - name: Upgrade certifi
-        run: pip install --upgrade certifi
- 
+        run: pip install --upgrade pip certifi requests snscrape
+
       - name: Run scraper
         run: python tweet_scraper.py
-           
-      - name: Upgrade snscrape and requests
-        run: pip install --upgrade snscrape requests
     
       - name: Commit and push changes
         run: |
