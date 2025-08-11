@@ -27,12 +27,6 @@ jobs:
       - name: Upgrade certifi
         run: pip install --upgrade certifi
 
-      - name: Upgrade snscrape and requests
-        run: pip install --upgrade snscrape requests
-
-      - name: Show certifi cert path
-        run: python -c "import certifi; print(certifi.where())"
-
       - name: Run scraper
         run: python tweet_scraper.py
 
