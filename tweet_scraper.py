@@ -1,53 +1,76 @@
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context  # 关闭 SSL 验证
-
-import snscrape.modules.twitter as sntwitter
-import pandas as pd
-from datetime import datetime
 import os
+import pandas as pd
 import matplotlib.pyplot as plt
-from textblob import TextBlob
+import pytz
+from datetime import datetime
+import subprocess
 
-# === 配置 ===
-query = "AI lang:en since:2025-08-01 until:2025-08-12"
-csv_file = "tweets_dataset.csv"
+# ========== 美国时间判断 ==========
+eastern = pytz.timezone("US/Eastern")
+now_eastern = datetime.now(eastern)
+if now_eastern.hour != 10:
+    print(f"当前美国东部时间是 {now_eastern.strftime('%Y-%m-%d %H:%M:%S')}，不是 10:00，跳过任务。")
+    exit()
 
-# === 历史数据读取 ===
-if os.path.exists(csv_file):
-    df_history = pd.read_csv(csv_file)
+# ========== 代理设置（GitHub Secrets） ==========
+PROXY_USER = os.getenv("PROXY_USER")
+PROXY_PASS = os.getenv("PROXY_PASS")
+PROXY_HOST = os.getenv("PROXY_HOST")
+PROXY_PORT = os.getenv("PROXY_PORT")
+
+if PROXY_USER and PROXY_HOST:
+    proxy_url = f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_HOST}:{PROXY_PORT}"
+    os.environ["HTTP_PROXY"] = proxy_url
+    os.environ["HTTPS_PROXY"] = proxy_url
+    print(f"已设置代理 {PROXY_HOST}")
+
+# ========== 配置搜索关键词 ==========
+QUERY = "AI OR artificial intelligence"  # 你可以改成自己想搜的词
+TWEETS_CSV = "tweets_dataset.csv"
+
+# ========== 采集最新推文 ==========
+print("开始采集推文数据...")
+cmd = f"snscrape --jsonl --max-results 50 twitter-search \"{QUERY} since:{datetime.now().strftime('%Y-%m-%d')}\""
+result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+if result.returncode != 0:
+    print("采集出错：", result.stderr)
+    exit()
+
+# ========== 解析数据 ==========
+import json
+tweets_data = []
+for line in result.stdout.splitlines():
+    tweet = json.loads(line)
+    tweets_data.append({
+        "date": tweet["date"],
+        "content": tweet["content"],
+        "username": tweet["user"]["username"],
+        "url": tweet["url"]
+    })
+
+df_new = pd.DataFrame(tweets_data)
+
+# ========== 历史数据追加 ==========
+if os.path.exists(TWEETS_CSV):
+    df_old = pd.read_csv(TWEETS_CSV)
+    df_all = pd.concat([df_old, df_new], ignore_index=True).drop_duplicates(subset=["url"])
 else:
-    df_history = pd.DataFrame(columns=["date", "content", "sentiment"])
+    df_all = df_new
 
-# === 采集推文 ===
-tweets_list = []
-for i, tweet in enumerate(sntwitter.TwitterSearchScraper(query).get_items()):
-    tweets_list.append([tweet.date, tweet.content])
-    if i >= 100:  # 采集上限
-        break
+df_all.to_csv(TWEETS_CSV, index=False, encoding="utf-8-sig")
+print(f"已保存数据到 {TWEETS_CSV}，当前总计 {len(df_all)} 条推文")
 
-df_new = pd.DataFrame(tweets_list, columns=["date", "content"])
-
-# === 情感分析 ===
-def get_sentiment(text):
-    return TextBlob(text).sentiment.polarity
-
-df_new["sentiment"] = df_new["content"].apply(get_sentiment)
-
-# === 合并历史数据 ===
-df_all = pd.concat([df_history, df_new]).drop_duplicates(subset=["content"])
-df_all.to_csv(csv_file, index=False, encoding="utf-8")
-
-print(f"已保存 {len(df_new)} 条新推文，总计 {len(df_all)} 条到 {csv_file}")
-
-# === 趋势图 ===
+# ========== 生成趋势图 ==========
 df_all["date"] = pd.to_datetime(df_all["date"])
-df_all_grouped = df_all.groupby(df_all["date"].dt.date)["sentiment"].mean()
+df_trend = df_all.groupby(df_all["date"].dt.date).size()
 
 plt.figure(figsize=(10, 5))
-df_all_grouped.plot(marker="o")
-plt.title("Average Sentiment Over Time")
+df_trend.plot(kind="line", marker="o")
+plt.title("Tweet Trend Over Time")
 plt.xlabel("Date")
-plt.ylabel("Sentiment Score")
+plt.ylabel("Number of Tweets")
 plt.grid(True)
-plt.savefig("sentiment_trend.png")
-plt.show()
+plt.tight_layout()
+plt.savefig("tweet_trend.png")
+print("趋势图已生成：tweet_trend.png")
