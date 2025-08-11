@@ -1,4 +1,5 @@
 import certifi
+print("certifi.where():", certifi.where())
 import snscrape.base
 snscrape.base._REQUEST_KWARGS = {'verify': certifi.where()}
 import os
